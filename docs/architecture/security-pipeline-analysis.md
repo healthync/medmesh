@@ -2,202 +2,357 @@
 
 ## Objective
 
-Analyze the existing AgentGuard security architecture and determine how it can evolve into the MedMesh healthcare AI governance runtime.
+Analyze the existing AgentGuard security subsystem and determine how it can evolve into the MedMesh healthcare AI governance runtime.
 
 ---
 
-# Current Security Architecture
+## Verified Current Structure
 
-## Existing Structure
+Current security subsystem:
 
-Current security module structure:
+    src/agentguard/security/
+    ├── __init__.py
+    ├── pipeline.py
+    └── guards/
+        ├── __init__.py
+        ├── base.py
+        ├── budget.py
+        ├── classifiers.py
+        ├── monitors.py
+        ├── pattern.py
+        ├── scope.py
+        ├── semantic.py
+        └── structural.py
 
-security/
-├── pipeline.py
-├── guards/
-├── policies/
-├── budget/
-├── monitoring/
-├── scanners/
-├── sandbox/
-├── validators/
-└── metrics/
-
----
-
-# Initial Architectural Observations
-
-The security subsystem is already designed as a runtime middleware pipeline rather than a static validation layer.
-
-This is extremely important because healthcare AI governance requires:
-
-- runtime enforcement
-- contextual validation
-- streaming inspection
-- event-driven monitoring
-- policy-aware orchestration
-
-The current architecture appears aligned with those goals.
+There is currently no policies, validators, scanners, sandbox, metrics, or standalone monitoring directory under src/agentguard/security.
 
 ---
 
-# Current Security Responsibilities
+## Verified Security Model
 
-Based on initial review, the security layer currently supports:
+The current security subsystem is a guard-based runtime pipeline.
 
-- input validation
-- output validation
+It is not yet a full healthcare policy engine.
+
+The pipeline executes guards through defined intercept points and should be treated as the current foundation for MedMesh runtime governance.
+
+---
+
+## Current Intercept Points
+
+The known intercept points to verify in code are:
+
+- INPUT
+- PRE_LLM
+- TOOL_AUTH
+- PRE_TOOL
+- TOOL_OUTPUT
+- OUTPUT
+- ASYNC
+
+These appear to be the main extension seams for runtime governance.
+
+---
+
+## Current Guard Categories
+
+### 1. Structural Guards
+
+File: guards/structural.py
+
+Responsibilities to verify:
+- input type validation
+- input length validation
+- encoding validation
+- tool argument schema validation
+
+Potential MedMesh evolution:
+- FHIR schema validation
+- healthcare payload validation
+- structured clinical data validation
+- terminology payload enforcement
+
+### 2. Pattern Guards
+
+File: guards/pattern.py
+
+Responsibilities to verify:
 - prompt injection detection
-- jailbreak detection
-- tool authorization
-- scope enforcement
-- budget enforcement
-- runtime monitoring
-- async event handling
+- jailbreak pattern detection
+- dangerous argument detection
+- system prompt leakage detection
 
-This provides a strong foundation for MedMesh.
+Potential MedMesh evolution:
+- unsafe clinical prompt detection
+- healthcare workflow injection detection
+- medical instruction manipulation detection
+- prompt provenance enforcement
 
----
+### 3. Budget Guards
 
-# MedMesh Translation
+File: guards/budget.py
 
-## Current → Future Mapping
+Responsibilities to verify:
+- token budgets
+- request budgets
+- cost budgets
+- tool call budgets
 
-| Existing Capability | MedMesh Capability |
-|---|---|
-| Input Guards | PHI Input Inspection |
-| Output Guards | PHI Output Inspection |
-| Prompt Injection Detection | Clinical Prompt Governance |
-| Tool Authorization | Clinical Tool Access Control |
-| Scope Enforcement | Patient-Scoped Authorization |
-| Runtime Monitoring | Clinical AI Governance Monitoring |
-| Budget Enforcement | Resource + Risk Governance |
-| Validators | Healthcare Policy Validators |
+Potential MedMesh evolution:
+- clinical workflow risk budgets
+- high-risk workflow throttling
+- expensive model governance
+- protected clinical escalation thresholds
 
----
+### 4. Scope Guards
 
-# Most Important Architectural Insight
+File: guards/scope.py
 
-The existing security layer is not merely a filtering system.
+Responsibilities to verify:
+- tool allowlists
+- delegation depth
+- human-in-the-loop approval
 
-It is evolving toward:
+Potential MedMesh evolution:
+- FHIR operation authorization
+- patient-scoped authorization
+- clinician approval workflows
+- high-risk operation escalation
+- regulated action enforcement
 
-> Runtime governance middleware for AI systems.
+### 5. Classifier Guards
 
-This aligns directly with the MedMesh vision.
+File: guards/classifiers.py
 
----
+Responsibilities to verify:
+- PII detection
+- PII anonymization
+- injection classification
+- toxicity classification
 
-# Future MedMesh Security Responsibilities
-
-The future MedMesh security runtime should support:
-
-## 1. PHI Inspection
-- PHI detection
-- contextual healthcare entity recognition
+Potential MedMesh evolution:
+- HIPAA Safe Harbor workflows
+- healthcare-specific PHI categories
+- medical record number handling
+- clinical note-aware anonymization
 - reversible tokenization
-- Safe Harbor workflows
+- patient identifier governance
 
----
+### 6. Semantic Guards
 
-## 2. Clinical Prompt Governance
-- unsafe medical prompt detection
-- prompt risk classification
-- prompt traceability
-- clinical escalation handling
+File: guards/semantic.py
 
----
+Responsibilities to verify:
+- semantic prompt injection detection
+- LLM-as-judge evaluation
 
-## 3. Runtime Policy Enforcement
-- role-based access
-- patient-scoped permissions
-- least privilege execution
-- contextual authorization
-
----
-
-## 4. Agent Tool Governance
-- FHIR tool restrictions
-- terminology tool controls
-- workflow authorization
-- approved capability boundaries
-
----
-
-## 5. Clinical Output Governance
+Potential MedMesh evolution:
+- unsafe clinical reasoning detection
 - hallucination risk scoring
-- PHI leakage prevention
 - unsafe recommendation detection
-- regulated response enforcement
+- policy-aware semantic governance
+
+### 7. Monitoring Guards
+
+File: guards/monitors.py
+
+Responsibilities to verify:
+- async audit logging
+- evaluation sampling
+- quality scoring
+- cost attribution
+
+Potential MedMesh evolution:
+- healthcare audit logging
+- PHI leakage telemetry
+- clinician review sampling
+- governance metrics
+- compliance event pipelines
 
 ---
 
-## 6. Threat Detection
-- prompt injection
-- model manipulation
-- privilege escalation
-- unauthorized workflow execution
-- sensitive data exfiltration
+## Important Correction
+
+The previous version of this document incorrectly described the security module as having separate folders for:
+
+- policies
+- validators
+- scanners
+- sandbox
+- metrics
+- monitoring
+
+Those folders have not been verified in the actual codebase and should not be treated as existing architecture.
 
 ---
 
-# Potential Future MedMesh Components
+## Current Strengths
 
-## MedMesh PHI Gateway
+### 1. Guard Pipeline Architecture
+
+The current structure suggests a middleware-oriented guard pipeline.
+
+This is valuable because healthcare AI governance requires runtime inspection and enforcement.
+
+### 2. Existing Guard Separation
+
+The current guard files are separated by concern:
+
+- structural validation
+- pattern detection
+- budget enforcement
+- scope enforcement
+- classifier-based detection
+- semantic analysis
+- monitoring
+
+This separation gives MedMesh clear extension points.
+
+### 3. Healthcare Extension Potential
+
+The existing guard model can likely support healthcare-specific extensions without a complete rewrite.
+
+Potential future guards:
+- PHIScrubberGuard
+- HIPAASafeHarborGuard
+- FHIRScopeGuard
+- ClinicalOutputSafetyGuard
+- PatientContextGuard
+- ClinicalAuditGuard
+
+---
+
+## Current Gaps
+
+### 1. No Healthcare PHI Semantics Confirmed Yet
+
+The current classifier layer may support general PII, but healthcare-grade PHI behavior still needs to be verified and likely extended.
+
+Missing or unverified:
+- HIPAA Safe Harbor categories
+- clinical PHI semantics
+- date shifting/generalization
+- age over 89 handling
+- healthcare identifier classification
+- provider/patient identity handling
+
+### 2. No FHIR-Aware Authorization Confirmed Yet
+
+Current scope behavior appears general tool-governance oriented.
+
+Missing or unverified:
+- FHIR resource-level permissions
+- SMART on FHIR scope mapping
+- patient-scoped authorization
+- read/write operation control
+- sensitivity-aware data governance
+
+### 3. No Dedicated Policy Engine in Security Layer
+
+There is no verified security/policies module.
+
+This means MedMesh may later need:
+- centralized healthcare policies
+- contextual authorization
+- declarative governance rules
+- policy composition
+- optional OPA/Rego integration
+
+### 4. No Healthcare Audit Semantics Confirmed Yet
+
+Monitoring may exist through guards/monitors.py, but healthcare-specific audit semantics are not yet verified.
+
+Missing or unverified:
+- patient context
+- accessed FHIR resources
+- workflow identity
+- clinician identity
+- PHI transformation events
+- policy decision events
+- access justification
+- output risk classification
+
+---
+
+## MedMesh Translation
+
+| Current Capability | Future MedMesh Capability |
+|---|---|
+| Guard Pipeline | MedMesh Governance Runtime |
+| Structural Guards | Healthcare Payload Validation |
+| Pattern Guards | Clinical Prompt Attack Detection |
+| Budget Guards | Resource and Risk Governance |
+| Scope Guards | FHIR and Tool Authorization |
+| Classifier Guards | PHI and Safety Classification |
+| Semantic Guards | Clinical Semantic Safety |
+| Monitoring Guards | Healthcare Audit and Compliance Telemetry |
+
+---
+
+## Strategic Direction
+
+MedMesh should not replace the existing guard pipeline immediately.
+
+Recommended path:
+
+1. Verify the core guard contracts.
+2. Document actual runtime behavior.
+3. Extend the guard model with healthcare-specific guards.
+4. Add policy abstraction only after the existing pipeline is understood.
+5. Add FHIR-aware authorization after scope guard behavior is verified.
+6. Add healthcare audit semantics after monitoring behavior is verified.
+
+---
+
+## Key Future MedMesh Components
+
+### MedMesh PHI Gateway
+
 Responsibilities:
-- prompt inspection
 - PHI detection
-- token masking
-- reversible anonymization
+- healthcare entity recognition
+- prompt inspection
+- output inspection
+- anonymization or masking
 
----
+### MedMesh Policy Runtime
 
-## MedMesh Policy Runtime
 Responsibilities:
-- policy evaluation
-- authorization
-- workflow governance
-- contextual security
+- contextual authorization
+- patient-scoped governance
+- SMART on FHIR mapping
+- healthcare policy enforcement
 
----
+### MedMesh Clinical Safety Engine
 
-## MedMesh Clinical Safety Engine
 Responsibilities:
 - hallucination analysis
-- unsafe clinical output detection
-- escalation workflows
-- confidence enforcement
+- unsafe recommendation detection
+- clinical escalation handling
+- confidence governance
+
+### MedMesh Audit Engine
+
+Responsibilities:
+- audit events
+- execution lineage
+- policy decision tracing
+- PHI transformation logs
+- compliance reporting
 
 ---
 
-# Key Open Questions
+## Recommended Next Analysis Step
 
-## Architecture Questions
-- Is the pipeline synchronous or async-first?
-- How are guards chained?
-- Are policies composable?
-- Is execution event-driven?
-- How extensible are validators?
-- How are security events propagated?
+Next, inspect and document the actual core contracts:
 
----
+1. AgentContext
+2. GuardResult
+3. GuardVerdict
+4. GuardMode
+5. SecurityPipeline
+6. Guard execution flow
+7. Async monitoring flow
 
-## Healthcare Questions
-- Where should PHI detection occur?
-- How should reversible anonymization work?
-- How should SMART on FHIR scopes map into policies?
-- How should audit events be structured?
-- How should patient context propagate through the runtime?
-
----
-
-# Next Steps
-
-1. Analyze pipeline.py
-2. Analyze guards/
-3. Analyze policies/
-4. Analyze validators/
-5. Analyze monitoring/
-6. Analyze runtime execution flow
-7. Define MedMesh healthcare governance extensions
+These define the actual extension model for MedMesh.
 
