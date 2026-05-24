@@ -1,15 +1,17 @@
-# HealthAI Guard
+# MedMesh
 
-HealthAI Guard is a healthcare AI governance and interoperability platform focused on:
+## The governance mesh for healthcare AI agents.
+
+MedMesh is a healthcare AI governance and orchestration platform focused on:
 
 - PHI-safe AI orchestration
 - Policy-aware healthcare AI agents
 - Zero-trust clinical AI systems
 - FHIR-native interoperability
 - Auditable healthcare AI infrastructure
-- Secure agentic AI runtime governance
+- Runtime governance for healthcare AI workflows
 
 ## Vision
 
-To provide the foundational infrastructure layer for safe, governable, and interoperable healthcare AI systems.
+To provide the foundational runtime infrastructure layer for safe, governable, and interoperable healthcare AI systems.
 
