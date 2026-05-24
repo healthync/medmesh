@@ -2,14 +2,29 @@
 
 ## Objective
 
-Analyze the existing guard implementations in AgentGuard and determine:
+Analyze the existing guard implementations in AgentGuard and determine how they can evolve into MedMesh healthcare AI governance primitives.
 
-- which guards are reusable for MedMesh
-- which guards require healthcare-specific extensions
-- which guards are not suitable for healthcare AI governance
-- where new healthcare-native guards must be introduced
+This document is based on the verified current security structure:
 
-This document focuses on concrete implementation behavior rather than high-level runtime contracts.
+    src/agentguard/security/
+    ├── __init__.py
+    ├── pipeline.py
+    └── guards/
+        ├── __init__.py
+        ├── base.py
+        ├── budget.py
+        ├── classifiers.py
+        ├── monitors.py
+        ├── pattern.py
+        ├── scope.py
+        ├── semantic.py
+        └── structural.py
+
+Important correction:
+
+The guards are grouped inside module files such as structural.py, pattern.py, budget.py, scope.py, classifiers.py, semantic.py, and monitors.py.
+
+They are not stored as separate files such as input_type_guard.py, input_length_guard.py, or tool_scope_guard.py.
 
 ---
 
@@ -21,789 +36,687 @@ The verified guard families currently present in the repository are:
 2. Pattern Guards
 3. Budget Guards
 4. Scope Guards
-5. Semantic Guards
-6. PII Guards
+5. Classifier Guards
+6. Semantic Guards
 7. Monitoring Guards
 
-However, only some of these are enabled by default in SecurityPipeline.from_config().
+---
+
+## Default Pipeline Status
+
+Based on the verified SecurityPipeline.from_config behavior, the default pipeline instantiates category 1 to category 4 guards.
+
+Enabled by default:
+
+- Structural guards
+- Pattern guards
+- Budget guards
+- Scope guards
+
+Not enabled by default:
+
+- Classifier guards
+- Semantic guards
+- Monitoring guards
+
+This is an important finding.
+
+It means the current default runtime is primarily a deterministic security and governance pipeline.
+
+For MedMesh, PHI, semantic safety, and audit monitoring must become first-class pipeline profiles rather than optional hidden capabilities.
 
 ---
 
 # 1. Structural Guards
 
-Verified files:
+Source file:
 
-- input_type_guard.py
-- input_length_guard.py
-- encoding_guard.py
-- tool_argument_schema_guard.py
+    src/agentguard/security/guards/structural.py
+
+## Purpose
+
+Structural guards validate basic input and tool payload structure before deeper analysis occurs.
+
+These guards are useful because downstream security checks assume inputs are well-formed.
 
 ---
 
-## 1.1 InputTypeGuard
+## Current Responsibilities
 
-### Purpose
+The structural guard family includes checks for:
 
-Validates that the incoming payload is a string.
+- input type
+- input length
+- encoding safety
+- tool argument schema
 
-### Current Behavior
+---
 
-Passes:
-- valid string input
+## MedMesh Value
 
-Blocks:
-- non-string payloads
+Structural guards are highly reusable for MedMesh.
 
-### Security Value
+Healthcare AI systems will receive a mixture of:
 
-Protects downstream guards from invalid assumptions about payload shape.
-
-### MedMesh Assessment
-
-Still useful for healthcare systems.
-
-Healthcare AI pipelines will receive:
-
-- prompts
-- transcribed notes
-- summaries
+- user prompts
+- clinical notes
 - patient messages
-- clinician instructions
+- FHIR JSON payloads
+- tool arguments
+- retrieved clinical documents
+- EHR exports
+- OCR-derived text
 
-String validation remains relevant.
-
-### Limitation
-
-Healthcare workflows may eventually require structured payload support:
-
-- FHIR JSON
-- CDA/XML
-- HL7 payloads
-- structured clinical events
-
-### Recommendation
-
-Keep for MVP.
-
-Later extend with structured payload validation.
-
-Potential future variants:
-
-- FHIRResourceTypeGuard
-- ClinicalDocumentSchemaGuard
-- HL7PayloadGuard
+Basic structural validation is still necessary before PHI detection, FHIR authorization, or clinical safety checks.
 
 ---
 
-## 1.2 InputLengthGuard
+## Healthcare Extension Opportunities
 
-### Purpose
+Future MedMesh structural guards may include:
 
-Blocks excessively large payloads.
-
-### Current Behavior
-
-Checks character length against configured threshold.
-
-### Security Value
-
-Protects against:
-
-- prompt flooding
-- memory exhaustion
-- oversized payload abuse
-
-### MedMesh Assessment
-
-Strongly reusable.
-
-Healthcare environments contain:
-
-- very long clinical notes
-- discharge summaries
-- pathology reports
-- radiology interpretations
-
-Length control remains important.
-
-### Healthcare-Specific Considerations
-
-Healthcare payloads may legitimately exceed ordinary LLM prompt sizes.
-
-Need differentiated thresholds for:
-
-- patient messages
-- clinician notes
-- FHIR bundles
-- imaging reports
-
-### Recommendation
-
-Reuse directly for MVP.
-
-Later add contextual thresholding.
+- FHIRResourceShapeGuard
+- ClinicalDocumentShapeGuard
+- HL7PayloadShapeGuard
+- FHIRBundleSizeGuard
+- ClinicalNoteLengthGuard
+- TerminologyCodeFormatGuard
 
 ---
 
-## 1.3 EncodingGuard
+## Recommendation
 
-### Purpose
+Reuse the existing structural guard family.
 
-Detects invalid or suspicious encoding patterns.
+Do not rewrite it.
 
-### Current Behavior
-
-Blocks malformed encoding and potentially dangerous character sequences.
-
-### Security Value
-
-Protects against:
-
-- encoding abuse
-- parser confusion
-- hidden payload injection
-
-### MedMesh Assessment
-
-Strongly reusable.
-
-Healthcare systems frequently exchange:
-
-- OCR text
-- copied EHR exports
-- external PDFs
-- multilingual patient content
-
-Encoding normalization remains important.
-
-### Recommendation
-
-Reuse directly with minimal modification.
-
----
-
-## 1.4 ToolArgumentSchemaGuard
-
-### Purpose
-
-Validates tool arguments against expected schema structure.
-
-### Current Behavior
-
-Ensures tool calls match expected parameter structure.
-
-### Security Value
-
-Protects tool layer from malformed arguments.
-
-### MedMesh Assessment
-
-Extremely important for healthcare.
-
-Healthcare tools may include:
-
-- FHIR readers
-- medication systems
-- scheduling APIs
-- patient search
-- CDS services
-- EHR write operations
-
-Schema validation is foundational.
-
-### Major Healthcare Extension Opportunity
-
-Future healthcare schemas may validate:
-
-- patient_id format
-- encounter_id format
-- FHIR resource structure
-- restricted operation types
-- allowed search scopes
-
-### Recommendation
-
-One of the highest-value reusable guards.
-
-Should become a core MedMesh foundation.
+Extend it later with healthcare-specific structured payload validation.
 
 ---
 
 # 2. Pattern Guards
 
-Verified files:
+Source file:
 
-- injection_pattern_guard.py
-- jailbreak_phrase_guard.py
-- dangerous_argument_guard.py
+    src/agentguard/security/guards/pattern.py
+
+## Purpose
+
+Pattern guards detect known unsafe strings, phrases, or argument patterns.
 
 ---
 
-## 2.1 InjectionPatternGuard
+## Current Responsibilities
 
-### Purpose
+The pattern guard family includes detection for:
 
-Detects known prompt injection patterns.
+- prompt injection patterns
+- jailbreak phrases
+- dangerous argument patterns
+- system prompt leakage patterns
 
-### Current Behavior
+---
 
-Uses regex/pattern matching for suspicious prompt structures.
+## MedMesh Value
 
-### Security Value
+Pattern guards are highly relevant to healthcare AI because healthcare agents may have access to sensitive clinical data and tools.
 
-Protects against:
+Prompt injection in healthcare can attempt to:
 
-- instruction override
-- hidden system prompt extraction
-- prompt hijacking
-
-### MedMesh Assessment
-
-Critical for healthcare AI.
-
-Healthcare environments are high-risk because prompt injection could expose:
-
-- PHI
-- treatment logic
-- internal prompts
-- protected records
-
-### Healthcare-Specific Risks
-
-Potential attacks:
-
-- reveal all patient records
-- ignore HIPAA restrictions
+- reveal PHI
 - bypass consent checks
-- expose hidden policies
-- override clinical safeguards
-
-### Recommendation
-
-Strongly reusable.
-
-Should become mandatory in MedMesh.
+- ignore safety rules
+- expose hidden system prompts
+- override clinical restrictions
+- perform unauthorized data access
+- trick tools into bulk patient retrieval
 
 ---
 
-## 2.2 JailbreakPhraseGuard
+## Healthcare Extension Opportunities
 
-### Purpose
+Future MedMesh pattern guards may include:
 
-Detects known jailbreak phrases and override attempts.
-
-### Current Behavior
-
-Uses phrase matching.
-
-### Security Value
-
-Blocks common adversarial prompts.
-
-### MedMesh Assessment
-
-Important but insufficient alone.
-
-Healthcare attacks may be more subtle than consumer jailbreak attempts.
-
-### Limitation
-
-Static phrase matching has limited long-term reliability.
-
-### Recommendation
-
-Keep for layered defense.
-
-Do not rely on it alone.
-
-Eventually complement with semantic detection.
+- ClinicalPromptInjectionGuard
+- PHIExfiltrationPatternGuard
+- FHIRBulkAccessPatternGuard
+- ConsentBypassPatternGuard
+- MedicalInstructionOverrideGuard
+- HiddenPolicyExtractionGuard
 
 ---
 
-## 2.3 DangerousArgumentGuard
+## Recommendation
 
-### Purpose
+Reuse the existing pattern guard family as part of the MedMesh baseline.
 
-Detects dangerous tool argument patterns.
+However, do not rely on static patterns alone.
 
-### Current Behavior
+Pattern guards should be layered with:
 
-Blocks suspicious argument values.
-
-### Security Value
-
-Protects tools from unsafe invocation.
-
-### MedMesh Assessment
-
-Very important for healthcare.
-
-Potential healthcare abuse examples:
-
-- bulk patient export
-- unrestricted patient search
-- unauthorized writes
-- unsafe medication changes
-- excessive query scope
-
-### Recommendation
-
-One of the most important reusable guards.
-
-Should evolve into healthcare-aware policy validation.
-
-Potential future versions:
-
-- FHIRDangerousOperationGuard
-- ClinicalWriteProtectionGuard
-- PatientScopeRestrictionGuard
+- scope guards
+- PHI guards
+- FHIR authorization guards
+- output guards
+- audit monitoring
 
 ---
 
 # 3. Budget Guards
 
-Verified files:
+Source file:
 
-- token_budget_guard.py
-- cost_budget_guard.py
-- request_rate_guard.py
-- tool_call_count_guard.py
+    src/agentguard/security/guards/budget.py
 
----
+## Purpose
 
-## 3.1 TokenBudgetGuard
-
-### Purpose
-
-Enforces token consumption limits.
-
-### Current Behavior
-
-Blocks requests exceeding token budget.
-
-### Security Value
-
-Protects against runaway usage.
-
-### MedMesh Assessment
-
-Useful operationally.
-
-Not healthcare-specific but still important.
-
-### Recommendation
-
-Reuse directly.
+Budget guards control usage of tokens, cost, requests, and tool calls.
 
 ---
 
-## 3.2 CostBudgetGuard
+## Current Responsibilities
 
-### Purpose
+The budget guard family includes checks for:
 
-Enforces cost limits.
-
-### Current Behavior
-
-Blocks requests exceeding cost threshold.
-
-### MedMesh Assessment
-
-Operationally useful.
-
-May become important for enterprise healthcare tenants.
-
-### Recommendation
-
-Reuse directly.
+- token budget
+- cost budget
+- request rate
+- tool call count
 
 ---
 
-## 3.3 RequestRateGuard
+## MedMesh Value
 
-### Purpose
+Budget guards are reusable and important for operational governance.
 
-Limits request frequency.
+In healthcare AI systems, budget controls can also reduce security risk.
 
-### Current Behavior
+Examples:
 
-Blocks excessive request rate.
-
-### Security Value
-
-Protects against abuse and flooding.
-
-### MedMesh Assessment
-
-Very important for healthcare APIs.
-
-Potential threats:
-
-- patient enumeration
-- scraping
-- automated extraction
-- denial-of-service behavior
-
-### Recommendation
-
-Strongly reusable.
+- limit runaway agents
+- limit excessive patient lookups
+- prevent recursive tool calls
+- reduce denial-of-service risk
+- restrict automated data extraction
+- limit expensive model usage
 
 ---
 
-## 3.4 ToolCallCountGuard
+## Healthcare Extension Opportunities
 
-### Purpose
+Future MedMesh budget guards may include:
 
-Limits number of tool calls per execution.
+- PatientLookupRateGuard
+- FHIRReadVolumeGuard
+- BulkExportThresholdGuard
+- HighRiskWorkflowRateGuard
+- ClinicalEscalationBudgetGuard
+- TenantModelSpendGuard
 
-### Current Behavior
+---
 
-Blocks excessive tool chaining.
+## Recommendation
 
-### Security Value
+Reuse the existing budget guard family.
 
-Prevents runaway agent behavior.
-
-### MedMesh Assessment
-
-Important for healthcare agents.
-
-Potential abuse:
-
-- mass patient lookup
-- recursive retrieval
-- automated bulk extraction
-
-### Recommendation
-
-Strongly reusable.
+For healthcare, extend budget concepts beyond cost and tokens into data-access volume and clinical workflow risk.
 
 ---
 
 # 4. Scope Guards
 
-Verified file:
+Source file:
 
-- tool_scope_guard.py
+    src/agentguard/security/guards/scope.py
+
+## Purpose
+
+Scope guards restrict what tools or delegated actions an agent can perform.
 
 ---
 
-## 4.1 ToolScopeGuard
+## Current Responsibilities
 
-### Purpose
+The scope guard family includes checks for:
 
-Restricts which tools an agent can invoke.
+- tool allowlists
+- delegation depth
+- human-in-the-loop gates
 
-### Current Behavior
+---
 
-Checks tool name against AgentContext.allowed_tools.
+## MedMesh Value
 
-### Security Value
+This is one of the most important guard families for MedMesh.
 
-Provides least-privilege enforcement.
+Healthcare AI agents must operate under least privilege.
 
-### MedMesh Assessment
+Different agents should have different capabilities:
 
-One of the most important guards in the entire system.
+- patient-facing agent
+- clinician assistant
+- billing assistant
+- research agent
+- prior authorization agent
+- care navigation agent
+- data extraction agent
 
-This maps directly to healthcare authorization.
+Each agent should have explicit authorization boundaries.
 
-### Potential Healthcare Mapping
+---
 
-Examples:
+## Healthcare Extension Opportunities
 
-- clinician agents
-- billing agents
-- triage agents
-- patient-facing assistants
-- research agents
-
-Each may require different access boundaries.
-
-### Future Healthcare Extensions
-
-Potential future guards:
+Future MedMesh scope guards may include:
 
 - FHIRScopeGuard
-- SMARTScopeGuard
-- PatientConsentGuard
+- SMARTOnFHIRScopeGuard
+- PatientContextGuard
+- ConsentContextGuard
 - TenantBoundaryGuard
-
-### Recommendation
-
-This should become a cornerstone MedMesh governance primitive.
-
----
-
-# 5. Semantic Guards
-
-Verified files exist but are not enabled by default.
-
-Examples include:
-
-- semantic_classifier_guard.py
-- semantic_policy_guard.py
+- ClinicianRoleGuard
+- ClinicalHumanReviewGuard
+- WriteOperationApprovalGuard
 
 ---
 
-## Current Assessment
+## Recommendation
 
-The semantic guard layer appears intended for ML-based classification or policy reasoning.
+Treat the existing scope guard family as a core MedMesh foundation.
 
-However, it is not wired into the default pipeline.
+This is the starting point for healthcare policy enforcement.
 
-### Potential MedMesh Value
+---
 
-Very high.
+# 5. Classifier Guards
 
-Potential healthcare use cases:
+Source file:
+
+    src/agentguard/security/guards/classifiers.py
+
+## Purpose
+
+Classifier guards perform model-based or analyzer-based classification of content.
+
+---
+
+## Current Responsibilities
+
+The classifier guard family includes:
+
+- PII detection and anonymization
+- injection classification
+- toxicity classification
+
+The most important current class for MedMesh is:
+
+    PIIScrubberGuard
+
+---
+
+## PIIScrubberGuard
+
+PIIScrubberGuard uses:
+
+- presidio_analyzer
+- presidio_anonymizer
+
+It analyzes text for PII entities and returns MODIFY when entities are detected.
+
+Its metadata includes:
+
+- pii_types
+- entity_count
+
+---
+
+## MedMesh Value
+
+This is one of the most strategically important areas for MedMesh.
+
+It can evolve into PHI governance.
+
+Healthcare AI requires PHI controls across:
+
+- user input
+- prompts
+- tool outputs
+- retrieved patient records
+- final model output
+- audit logs
+- research datasets
+
+---
+
+## Current Limitation
+
+PIIScrubberGuard is currently general-purpose PII handling.
+
+It is not yet healthcare-grade PHI governance.
+
+Missing MedMesh-specific capabilities include:
+
+- HIPAA Safe Harbor mapping
+- medical record number handling
+- health plan beneficiary number handling
+- age over 89 handling
+- date generalization
+- clinical context awareness
+- patient-specific PHI policies
+- reversible pseudonymization
+- PHI audit metadata
+- model-destination policy checks
+
+---
+
+## Healthcare Extension Opportunities
+
+Future MedMesh classifier guards may include:
+
+- PHIScrubberGuard
+- HIPAASafeHarborGuard
+- ClinicalContextPHIGuard
+- DateGeneralizationGuard
+- AgeGeneralizationGuard
+- HealthcareIdentifierGuard
+- PHILeakageOutputGuard
+
+---
+
+## Recommendation
+
+Do not replace PIIScrubberGuard immediately.
+
+Use it as the baseline.
+
+Build MedMesh PHI capability as a wrapper, subclass, or new guard that reuses the Presidio foundation while adding healthcare metadata and PHI-specific rules.
+
+---
+
+# 6. Semantic Guards
+
+Source file:
+
+    src/agentguard/security/guards/semantic.py
+
+## Purpose
+
+Semantic guards use deeper classification or LLM-based reasoning to detect unsafe content beyond simple patterns.
+
+---
+
+## Current Status
+
+Semantic guard code exists but is not enabled in the verified default pipeline.
+
+---
+
+## MedMesh Value
+
+Semantic guards may become valuable for healthcare use cases such as:
 
 - unsafe clinical advice detection
-- suicide/self-harm detection
-- treatment hallucination detection
-- PHI leakage classification
-- inappropriate patient guidance
-- high-risk workflow escalation
+- hallucination risk assessment
+- subtle PHI leakage detection
+- self-harm escalation
+- medication advice review
+- unsafe diagnosis recommendation detection
+- patient-facing output review
 
-### Current Risk
+---
 
-Semantic systems introduce:
+## Healthcare Risk
+
+Semantic guards introduce additional risks:
 
 - latency
 - nondeterminism
 - model drift
-- explainability concerns
+- explainability limitations
+- false positives
+- false negatives
+- dependency on external LLMs
 
-These are especially important in healthcare.
+These risks are especially important in healthcare.
 
-### Recommendation
+---
 
-Do not rely heavily on semantic guards in the first MedMesh MVP.
+## Recommendation
 
-Use deterministic controls first:
+Do not make semantic guards the first line of defense in the MVP.
 
-- scope
-- schema
-- policy
-- PHI rules
+Use deterministic governance first:
+
 - structural validation
-
-Add semantic governance later as a secondary layer.
-
----
-
-# 6. PII Guards
-
-Verified files exist but are not enabled by default.
-
-Examples include:
-
-- pii_guard.py
-- pii_redaction_guard.py
-
----
-
-## Current Assessment
-
-This is one of the most strategically important areas for MedMesh.
-
-### Potential Healthcare Value
-
-Extremely high.
-
-Potential use cases:
-
+- scope enforcement
+- schema validation
 - PHI detection
-- HIPAA Safe Harbor enforcement
-- de-identification
-- anonymization
-- tokenization
-- output filtering
+- FHIR authorization
+- output inspection
 
-### Current Unknowns
-
-The implementation quality still requires deeper analysis:
-
-- regex-only?
-- NER-based?
-- deterministic?
-- confidence thresholds?
-- false-positive handling?
-- healthcare entity support?
-
-### Recommendation
-
-This should become a primary MedMesh workstream.
-
-Need deeper analysis next.
-
-Recommended future document:
-
-    pii-and-phi-governance-analysis.md
+Then add semantic guards as a secondary safety layer.
 
 ---
 
 # 7. Monitoring Guards
 
-Verified monitor guard files exist but are not enabled by default.
+Source file:
 
-Examples:
+    src/agentguard/security/guards/monitors.py
 
-- telemetry_guard.py
-- audit_guard.py
-- monitor_guard.py
+## Purpose
+
+Monitoring guards support non-blocking observation, audit, telemetry, evaluation, or quality checks.
 
 ---
 
-## Current Assessment
+## Current Status
 
-Potentially valuable for healthcare observability.
+Monitoring guard code exists but is not enabled in the verified default pipeline.
 
-### Potential Healthcare Use Cases
+---
+
+## MedMesh Value
+
+Monitoring is critical for healthcare governance.
+
+Healthcare AI systems need strong auditability.
+
+Monitoring guards can support:
 
 - audit logging
-- governance telemetry
-- policy metrics
-- PHI access tracing
-- compliance evidence
-- clinical workflow monitoring
-
-### Healthcare Importance
-
-Healthcare governance requires auditability.
-
-This area may become foundational.
-
-### Recommendation
-
-Very important for enterprise MedMesh.
-
-Need detailed analysis later.
+- PHI event capture
+- policy decision tracing
+- clinical safety sampling
+- latency metrics
+- model output evaluation
+- compliance reporting
+- incident investigation
 
 ---
 
-# Important Architectural Finding
+## Healthcare Extension Opportunities
 
-Only a subset of guards are enabled in the default pipeline.
+Future MedMesh monitoring guards may include:
 
-Currently enabled by default:
-
-- structural guards
-- pattern guards
-- budget guards
-- scope guards
-
-Not enabled by default:
-
-- semantic guards
-- PII guards
-- monitoring guards
-
-This means the repository currently behaves more like a secure AI runtime than a healthcare governance runtime.
-
-That is acceptable for the current architecture stage.
+- HealthcareAuditGuard
+- PHIAuditGuard
+- FHIRAccessAuditGuard
+- PolicyDecisionAuditGuard
+- ClinicalQualitySamplingGuard
+- PHILeakageMonitor
+- GovernanceTelemetryGuard
 
 ---
 
-# Strongest Reusable Foundations For MedMesh
+## Recommendation
 
-The highest-value reusable guards are:
+Monitoring must become first-class in MedMesh.
 
-1. ToolScopeGuard
-2. ToolArgumentSchemaGuard
-3. DangerousArgumentGuard
-4. InjectionPatternGuard
-5. RequestRateGuard
-6. ToolCallCountGuard
-7. InputLengthGuard
+However, first define metadata contracts and audit event shape.
 
-These provide strong deterministic governance foundations.
+Then wire monitoring guards into MedMesh-specific pipeline profiles.
 
 ---
 
-# Highest-Priority Healthcare Extensions
+# Reusability Matrix
 
-The most important new healthcare-specific guard areas are:
-
-1. PHI Detection
-2. PHI Redaction
-3. FHIR Authorization
-4. Consent Enforcement
-5. Clinical Safety Review
-6. Audit Logging
-7. Patient Boundary Enforcement
+| Guard Family | Reusable For MedMesh | Refactor Needed | Healthcare Importance |
+|---|---|---|---|
+| Structural | Yes | Low | High |
+| Pattern | Yes | Medium | High |
+| Budget | Yes | Low to Medium | Medium |
+| Scope | Yes | Medium to High | Critical |
+| Classifier | Partial | High | Critical |
+| Semantic | Partial | Medium to High | High, later phase |
+| Monitoring | Partial | Medium | Critical |
 
 ---
 
-# Recommended MedMesh Guard Strategy
+# Highest-Value Existing Guard Foundations
 
-## Phase 1
+The most valuable existing foundations for MedMesh are:
 
-Reuse deterministic infrastructure:
+1. Scope guard family
+2. Structural guard family
+3. Pattern guard family
+4. PIIScrubberGuard
+5. Budget guard family
+6. Monitoring guard family
+7. Semantic guard family
 
-- scope guards
-- schema guards
-- pattern guards
-- budget guards
+---
 
-## Phase 2
+# Highest-Priority New MedMesh Guards
 
-Introduce healthcare deterministic controls:
+The highest-priority healthcare-specific guards are:
 
-- PHI guards
-- FHIR scope guards
-- consent guards
-- patient boundary guards
+1. PHIScrubberGuard
+2. HIPAASafeHarborGuard
+3. FHIRScopeGuard
+4. PatientContextGuard
+5. ConsentContextGuard
+6. HealthcareAuditGuard
+7. PHILeakageOutputGuard
+8. ClinicalHumanReviewGuard
+9. ClinicalOutputSafetyGuard
 
-## Phase 3
+---
 
-Introduce semantic healthcare controls:
+# Recommended Guard Evolution Strategy
 
-- hallucination detection
-- unsafe clinical advice detection
-- escalation classification
+## Phase 1: Preserve Existing Guard Pipeline
 
-## Phase 4
+Do not rewrite the current architecture.
 
-Introduce enterprise governance:
+The existing guard-based runtime is useful.
 
-- policy orchestration
-- tenant governance
-- audit analytics
-- compliance dashboards
+---
+
+## Phase 2: Define MedMesh Pipeline Profiles
+
+Create healthcare-specific profiles such as:
+
+- medmesh-dev
+- medmesh-clinical-internal
+- medmesh-external-model-strict
+- medmesh-research
+- medmesh-patient-facing
+
+Each profile should explicitly define:
+
+- enabled guards
+- intercept points
+- enforcement modes
+- PHI handling mode
+- audit requirements
+
+---
+
+## Phase 3: Add PHI Governance
+
+Implement:
+
+- PHIScrubberGuard
+- Safe Harbor metadata mapping
+- OUTPUT PHI leakage inspection
+- audit metadata enrichment
+
+---
+
+## Phase 4: Add FHIR Authorization
+
+Implement:
+
+- FHIRScopeGuard
+- PatientContextGuard
+- SMART scope validation
+- FHIR operation metadata
+
+---
+
+## Phase 5: Add Audit Monitoring
+
+Implement:
+
+- HealthcareAuditGuard
+- PHIAuditGuard
+- FHIRAccessAuditGuard
+- PolicyDecisionAuditGuard
+
+---
+
+## Phase 6: Add Semantic Clinical Safety
+
+Implement later:
+
+- ClinicalOutputSafetyGuard
+- UnsafeClinicalAdviceGuard
+- HallucinationRiskGuard
+- HumanReviewRecommendationGuard
+
+---
+
+# Important Design Rule
+
+For the MVP, MedMesh should prioritize deterministic governance before semantic governance.
+
+Order of importance:
+
+1. deterministic policy and scope enforcement
+2. PHI detection and transformation
+3. FHIR authorization
+4. auditability
+5. semantic clinical safety
+
+This keeps the first version understandable, testable, and auditable.
 
 ---
 
 # Principal Engineer Recommendation
 
-Do not attempt to replace the current guard architecture.
+The existing guard implementation structure is usable.
+
+Do not rename or restructure the guards prematurely.
 
 Instead:
 
-- preserve the deterministic pipeline
-- treat healthcare governance as additional layered guards
-- keep semantic systems secondary initially
-- prioritize auditability and explainability
+- document the existing guard families
+- introduce MedMesh-specific guards beside existing guards
+- add healthcare pipeline profiles
 - preserve fail-closed behavior
+- standardize metadata
+- add healthcare auditability
 
-The current architecture is a strong foundation for MedMesh if healthcare-specific governance layers are added carefully.
+The next technical design step should focus on MedMesh pipeline profiles.
 
 ---
 
-# Recommended Next Analysis
+# Next Recommended Document
 
-Next recommended document:
+Create:
 
-    docs/architecture/pii-and-phi-governance-analysis.md
+    docs/architecture/medmesh-pipeline-profiles.md
 
-This next document should deeply analyze:
-
-- current PII guard implementations
-- PHI detection requirements
-- HIPAA Safe Harbor requirements
-- de-identification strategies
-- healthcare NER approaches
-- tokenization vs masking
-- reversible anonymization
-- audit implications
+This document should define the runtime profiles that decide which guards are enabled for different healthcare AI deployment scenarios.
 
